@@ -10,6 +10,8 @@ import cgi
 from wsgiref.simple_server import make_server
 from wsgiref import util
 
+import bleach
+
 # HTML template for the forum page
 HTML_WRAP = '''\
 <!DOCTYPE html>
@@ -51,10 +53,14 @@ def View(env, resp):
     '''
     # get posts from database
     posts = forumdb.GetAllPosts()
+    
+    # sanitize output
+    postsBleached = [{'content': str(bleach.clean(post['content'])), 'time': str(post['time'])} for post in posts]
+    
     # send results
     headers = [('Content-type', 'text/html')]
     resp('200 OK', headers)
-    return [HTML_WRAP % ''.join(POST % p for p in posts)]
+    return [HTML_WRAP % ''.join(POST % p for p in postsBleached)]
 
 ## Request handler for posting - inserts to database
 def Post(env, resp):
@@ -74,8 +80,10 @@ def Post(env, resp):
         # If the post is just whitespace, don't save it.
         content = content.strip()
         if content:
+            #sanitize
+            bleachedContent = bleach.clean(content)
             # Save it in the database
-            forumdb.AddPost(content)
+            forumdb.AddPost(bleachedContent)
     # 302 redirect back to the main page
     headers = [('Location', '/'),
                ('Content-type', 'text/plain')]
